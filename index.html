@@ -1589,7 +1589,7 @@ function SonderfahrtenKalender() {
       script.onload = function() {
         try {
           var src = document.getElementById('app-source').textContent;
-          var compiled = Babel.transform(src, { presets: ['react'] }).code;
+          var compiled = Babel.transform(src, { presets: ['react'], sourceType: 'script' }).code;
           var fn = new Function('React', 'ReactDOM', compiled + '\nreturn SonderfahrtenKalender;');
           var Comp = fn(React, ReactDOM);
           var root = ReactDOM.createRoot(document.getElementById('root'));
