@@ -4,7 +4,6 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <meta name="theme-color" content="#f97316">
-  <meta name="description" content="Sonderfahrten und Laufleistungen historischer Züge in Deutschland 2026">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="Dampfkalender">
@@ -13,51 +12,98 @@
   <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
   <title>Dampf &amp; Nostalgie 2026</title>
   <style>
-    * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { background: #0a0a0f; color: #e8e0d0; font-family: Georgia, serif; }
-    #root { min-height: 100vh; padding-top: env(safe-area-inset-top); }
-    #loader {
-      position: fixed; inset: 0; background: #0a0a0f;
-      display: flex; flex-direction: column;
-      align-items: center; justify-content: center; gap: 16px; z-index: 9999;
-    }
-    #loader .loco { font-size: 48px; animation: chug 0.6s infinite alternate; }
-    @keyframes chug { from { transform: translateX(-4px); } to { transform: translateX(4px); } }
-    #loader p { font-family: monospace; font-size: 12px; color: #f97316; letter-spacing: 2px; }
-    #loader small { font-family: monospace; font-size: 10px; color: #555; }
-    .install-btn {
-      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
-      background: #f97316; color: #000; padding: 10px 22px; border-radius: 24px;
-      font-family: monospace; font-size: 12px; cursor: pointer; z-index: 9999;
-      box-shadow: 0 4px 20px rgba(249,115,22,0.4); display: none; border: none;
-    }
+    *{box-sizing:border-box;margin:0;padding:0}
+    body{background:#0a0a0f;color:#e8e0d0;font-family:Georgia,serif}
+    #root{min-height:100vh;padding-top:env(safe-area-inset-top)}
+    #loader{position:fixed;inset:0;background:#0a0a0f;display:flex;flex-direction:column;
+      align-items:center;justify-content:center;gap:16px;z-index:9999}
+    .loco{font-size:48px;animation:chug .6s infinite alternate}
+    @keyframes chug{from{transform:translateX(-4px)}to{transform:translateX(4px)}}
+    #loader p{font-family:monospace;font-size:12px;color:#f97316;letter-spacing:2px}
+    #loader small{font-family:monospace;font-size:10px;color:#555}
+    #err{display:none;position:fixed;inset:0;background:#0a0a0f;color:#ef4444;
+      font-family:monospace;font-size:12px;padding:20px;text-align:center;
+      display:flex;align-items:center;justify-content:center;flex-direction:column;gap:8px}
+    .ibtn{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);
+      background:#f97316;color:#000;padding:10px 22px;border-radius:24px;
+      font-family:monospace;font-size:12px;cursor:pointer;z-index:9999;
+      box-shadow:0 4px 20px rgba(249,115,22,.4);display:none;border:none}
   </style>
 </head>
 <body>
   <div id="loader">
     <div class="loco">🚂</div>
     <p>DAMPF &amp; NOSTALGIE 2026</p>
-    <small>Kalender wird geladen…</small>
+    <small id="load-status">Lade React…</small>
   </div>
+  <div id="err"></div>
   <div id="root"></div>
-  <button class="install-btn" id="install-btn">📲 App installieren</button>
+  <button class="ibtn" id="ibtn">📲 App installieren</button>
 
   <script>
-    // Fehler abfangen
-    window.onerror = function(msg, src, line) {
-      document.getElementById('loader').innerHTML =
-        '<p style="color:#ef4444;font-family:monospace;padding:20px;text-align:center">' +
-        '⚠️ Ladefehler<br><small style="color:#666">' + msg + '</small></p>';
-    };
+  function showErr(msg) {
+    document.getElementById('loader').style.display='none';
+    var e=document.getElementById('err');
+    e.style.display='flex';
+    e.innerHTML='<span style="font-size:32px">⚠️</span><b>Fehler</b><span>'+msg+'</span>';
+  }
+  function setStatus(t){ var s=document.getElementById('load-status'); if(s) s.textContent=t; }
+
+  function loadScript(src, cb) {
+    setStatus('Lade '+src.split('/').pop().split('?')[0]+'…');
+    var s=document.createElement('script');
+    s.src=src; s.crossOrigin='anonymous';
+    s.onload=cb;
+    s.onerror=function(){ showErr('Netzwerkfehler: '+src); };
+    document.head.appendChild(s);
+  }
+
+  loadScript('https://unpkg.com/react@18/umd/react.production.min.js', function() {
+    loadScript('https://unpkg.com/react-dom@18/umd/react-dom.production.min.js', function() {
+      setStatus('Lade Babel…');
+      loadScript('https://unpkg.com/@babel/standalone/babel.min.js', function() {
+        setStatus('Kompiliere App…');
+        setTimeout(function() {
+          try {
+            var src = document.getElementById('app').textContent;
+            var out = Babel.transform(src, {
+              presets: [['react',{runtime:'classic'}]],
+              sourceType: 'script',
+              plugins: []
+            }).code;
+            // Sicherheit: falls doch require() entsteht
+            if (out.indexOf('require(') !== -1) {
+              out = out.replace(/require\(["'][^"']+["']\)/g, '(window.React||{})');
+            }
+            var fn = new Function('React','ReactDOM', out + '\nreturn SonderfahrtenKalender;');
+            var Comp = fn(window.React, window.ReactDOM);
+            var root = ReactDOM.createRoot(document.getElementById('root'));
+            root.render(React.createElement(Comp));
+            document.getElementById('loader').style.display='none';
+          } catch(e) {
+            showErr(e.message);
+          }
+        }, 50);
+      });
+    });
+  });
+
+  if('serviceWorker' in navigator) {
+    window.addEventListener('load', function(){ navigator.serviceWorker.register('sw.js'); });
+  }
+
+  var dp;
+  window.addEventListener('beforeinstallprompt', function(e){
+    e.preventDefault(); dp=e;
+    document.getElementById('ibtn').style.display='block';
+  });
+  document.getElementById('ibtn').addEventListener('click', function(){
+    if(!dp)return; dp.prompt();
+    dp.userChoice.then(function(){ dp=null; document.getElementById('ibtn').style.display='none'; });
+  });
   </script>
 
-  <!-- React + ReactDOM -->
-  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-
-  <!-- App-Code (vorverarbeitet: kein JSX, nur React.createElement via htm) -->
-  <!-- Babel nur für JSX-Transformation, danach wegwerfen -->
-  <script id="app-source" type="text/plain">
+  <script id="app" type="text/plain">
 const { useState } = React;
 
 const events = [
@@ -1580,55 +1626,6 @@ function SonderfahrtenKalender() {
  );
 }
 
-  </script>
-
-  <script>
-    function loadBabelAndRun() {
-      var script = document.createElement('script');
-      script.src = 'https://unpkg.com/@babel/standalone/babel.min.js';
-      script.onload = function() {
-        try {
-          var src = document.getElementById('app-source').textContent;
-          var compiled = Babel.transform(src, { presets: ['react'], sourceType: 'script' }).code;
-          var fn = new Function('React', 'ReactDOM', compiled + '\nreturn SonderfahrtenKalender;');
-          var Comp = fn(React, ReactDOM);
-          var root = ReactDOM.createRoot(document.getElementById('root'));
-          root.render(React.createElement(Comp));
-          document.getElementById('loader').style.display = 'none';
-        } catch(e) {
-          document.getElementById('loader').innerHTML =
-            '<p style="color:#ef4444;font-family:monospace;padding:20px;text-align:center">' +
-            '⚠️ ' + e.message + '</p>';
-        }
-      };
-      script.onerror = function() {
-        document.getElementById('loader').innerHTML =
-          '<p style="color:#ef4444;font-family:monospace;padding:20px;text-align:center">' +
-          '⚠️ Babel konnte nicht geladen werden.<br><small>Bitte Internetverbindung prüfen.</small></p>';
-      };
-      document.head.appendChild(script);
-    }
-    window.addEventListener('load', loadBabelAndRun);
-
-    // Service Worker
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.register('sw.js');
-    }
-
-    // PWA Install
-    var deferredPrompt;
-    window.addEventListener('beforeinstallprompt', function(e) {
-      e.preventDefault(); deferredPrompt = e;
-      document.getElementById('install-btn').style.display = 'block';
-    });
-    document.getElementById('install-btn').addEventListener('click', function() {
-      if (!deferredPrompt) return;
-      deferredPrompt.prompt();
-      deferredPrompt.userChoice.then(function() {
-        deferredPrompt = null;
-        document.getElementById('install-btn').style.display = 'none';
-      });
-    });
   </script>
 </body>
 </html>
